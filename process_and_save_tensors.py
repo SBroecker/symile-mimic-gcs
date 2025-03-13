@@ -16,13 +16,21 @@ import wfdb
 from args import parse_process_and_save_tensors
 from constants import IMAGENET_MEAN, IMAGENET_STD
 
+from google.cloud import storage
+from io import BytesIO
 
-def get_cxr(args, pt, split):
+def get_cxr(args, pt, split, bucket=None):
     """
     Loads and preprocesses a chest X-ray (CXR) image.
     """
-    cxr_pt = args.cxr_data_dir / pt
-    img = Image.open(cxr_pt).convert('RGB')
+    
+    # if bucket is None, then we are using local data
+    if bucket is None:
+        cxr_pt = args.cxr_data_dir / pt
+        img = Image.open(cxr_pt).convert('RGB')
+    else:
+        blob = bucket.blob(pt)
+        img = Image.open(BytesIO(blob.download_as_bytes())).convert('RGB')
 
     # square crop
     if split == "train":
@@ -88,7 +96,7 @@ def get_labs(args, row):
             torch.tensor(missing_indicators, dtype=torch.int64))
 
 
-def process_and_save_tensors(args, df, split):
+def process_and_save_tensors(args, df, split, bucket=None):
     """
     Processes the data from df and saves the resulting tensors to the specified
     directory.
@@ -106,7 +114,7 @@ def process_and_save_tensors(args, df, split):
     label_list = []
 
     for _, row in tqdm(df.iterrows(), total=df.shape[0]):
-        cxr = get_cxr(args, row["cxr_path"], split)
+        cxr = get_cxr(args, row["cxr_path"], split, bucket)
         ecg = get_ecg(args, row["ecg_path"])
         (labs_percentiles, labs_missingness) = get_labs(args, row)
 
@@ -144,6 +152,12 @@ if __name__ == '__main__':
     start = time.time()
 
     args = parse_process_and_save_tensors()
+    
+    if args.gcs:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(args.bucket_name)
+    else:
+        bucket = None
 
     train_df = pd.read_csv(args.data_dir / args.train_csv)
     val_df = pd.read_csv(args.data_dir / args.val_csv)
@@ -151,16 +165,16 @@ if __name__ == '__main__':
     test_df = pd.read_csv(args.data_dir / args.test_csv)
 
     print("Saving train tensors...")
-    process_and_save_tensors(args, train_df, "train")
+    process_and_save_tensors(args, train_df, "train", bucket)
 
     print("Saving val tensors...")
-    process_and_save_tensors(args, val_df, "val")
+    process_and_save_tensors(args, val_df, "val", bucket)
 
     print("Saving val retrieval tensors...")
-    process_and_save_tensors(args, val_retrieval_df, "val_retrieval")
+    process_and_save_tensors(args, val_retrieval_df, "val_retrieval", bucket)
 
     print("Saving test tensors...")
-    process_and_save_tensors(args, test_df, "test")
+    process_and_save_tensors(args, test_df, "test", bucket)
 
     with open(args.data_dir / "metadata.json", "w") as f:
         json.dump({

@@ -11,6 +11,9 @@ import wfdb
 from args import parse_process_mimic_data
 from constants import LABS
 
+from google.cloud import storage
+from tqdm import tqdm
+tqdm.pandas()
 
 def get_admissions_df(mimiciv_hosp_dir):
     """
@@ -52,7 +55,7 @@ def get_admissions_df(mimiciv_hosp_dir):
 ### CXR ###
 ###########
 
-def get_cxr_df(admissions_df, cxr_data_dir):
+def get_cxr_df(admissions_df, cxr_data_dir, gcs=False):
     """
     Retrieves and processes chest X-ray (CXR) data, merging it with admissions
     data from the MIMIC-IV dataset.
@@ -63,8 +66,9 @@ def get_cxr_df(admissions_df, cxr_data_dir):
 
     Args:
         admissions_df (pd.DataFrame): contains admissions information with unique identifier `hadm_id`.
-        cxr_data_dir (str): Directory path to the CXR data files. Must include the files
+        cxr_data_dir (str): Directory path to the CXR data files, or a GCS bucket name. Must include the files
                             `mimic-cxr-2.0.0-metadata.csv.gz` and `mimic-cxr-2.0.0-chexpert.csv.gz`.
+        gcs (bool): Whether the CXR data is stored in a GCS bucket.
 
     Returns:
         df (pd.DataFrame): Contains merged and processed CXR and admission data with a unique row for each `hadm_id`.
@@ -74,6 +78,11 @@ def get_cxr_df(admissions_df, cxr_data_dir):
             'cxr_dicom_id', 'cxr_study_id', 'cxr_ViewPosition', 'cxr_ViewCodeSequence_CodeMeaning',
             'cxr_StudyDateTime', 'cxr_path', 'study_id', and columns for the CheXpert labels.
     """
+    if gcs:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(cxr_data_dir)
+        cxr_data_dir = f"gs://{cxr_data_dir}"
+    
     cxr_df = pd.read_csv(f"{cxr_data_dir}/mimic-cxr-2.0.0-metadata.csv.gz", compression="gzip")
     chexpert_df = pd.read_csv(f"{cxr_data_dir}/mimic-cxr-2.0.0-chexpert.csv.gz", compression="gzip")
 
@@ -95,7 +104,11 @@ def get_cxr_df(admissions_df, cxr_data_dir):
     axis=1)
 
     # filter out rows where the CXR image file does not exist
-    file_exists_mask = cxr_df["cxr_path"].apply(lambda x: os.path.exists(os.path.join(cxr_data_dir, x)))
+    if gcs:
+        file_exists_mask = cxr_df["cxr_path"].progress_apply(lambda x: storage.Blob(bucket=bucket, name=x).exists(storage_client))
+    else:
+        file_exists_mask = cxr_df["cxr_path"].progress_apply(lambda x: os.path.exists(os.path.join(cxr_data_dir, x)))
+    
     cxr_df = cxr_df[file_exists_mask]
 
     # find the earliest CXR within 24 to 72 hours after admission
@@ -172,7 +185,7 @@ def get_ecg_df(admissions_df, ecg_data_dir):
     def _remove_ecg(pt):
         signal = wfdb.rdrecord(pt).p_signal
         return np.isnan(signal).any() or np.all(signal == 0)
-    remove_ecg_mask = ecg_df["full_path"].apply(_remove_ecg)
+    remove_ecg_mask = ecg_df["full_path"].progress_apply(_remove_ecg)
     ecg_df = ecg_df[~remove_ecg_mask].drop("full_path", axis=1)
 
     # find the earliest ECG within 24 hours of admission
@@ -341,7 +354,7 @@ if __name__ == '__main__':
 
     # get cxrs within 24 to 72 hours of admission
     print("Processing CXR data...")
-    cxr_df = get_cxr_df(admissions_df, args.cxr_data_dir)
+    cxr_df = get_cxr_df(admissions_df, args.bucket_name if args.gcs else args.cxr_data_dir, args.gcs)
 
     # get ecgs within 24 hours of admission
     print("Processing ECG data...")

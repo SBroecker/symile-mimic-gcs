@@ -29,6 +29,11 @@ def parse_process_mimic_data():
     parser.add_argument("--cxr_data_dir", type=Path,
                         help="Directory with MIMIC CXR data, which must include the \
                         files mimic-cxr-2.0.0-metadata.csv.gz and mimic-cxr-2.0.0-chexpert.csv.gz.")
+    parser.add_argument("--bucket_name", type=str, default=None,
+                        help="GCS bucket with MIMIC CXR data, which must include the \
+                        files mimic-cxr-2.0.0-metadata.csv.gz and mimic-cxr-2.0.0-chexpert.csv.gz.")
+    parser.add_argument("--gcs", action="store_true",
+                        help="Whether to use GCS for CXR data.")
     parser.add_argument("--ecg_data_dir", type=Path,
                         help="Directory with MIMIC ECG data, which must include the \
                         file record_list.csv.")
@@ -72,6 +77,11 @@ def parse_process_and_save_tensors():
     parser.add_argument("--cxr_data_dir", type=Path,
                         help="Directory that contains the MIMIC `files` directory \
                               with CXR data.")
+    parser.add_argument("--bucket_name", type=str, default=None,
+                        help="Bucket that contains the MIMIC `files` directory \
+                              with CXR data.")
+    parser.add_argument("--gcs", action="store_true",
+                        help="Whether to use GCS for CXR data.")
     parser.add_argument("--labs_means", type=Path,
                         default=Path("labs_means.json"),
                         help="json filename for labs means.")
