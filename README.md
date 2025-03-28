@@ -1,3 +1,5 @@
+**Note**: This is a copy of the code from the PhysioNet dataset [Symile-MIMIC](https://doi.org/10.13026/3vvj-s428) with minor changes to allow you to read CXR data from Google Cloud Storage (GCS) instead of locally. See the page for [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/2.0.0/) to learn how to get access to the appropriate GCS bucket. You will need access to that bucket and be [authenticated](https://cloud.google.com/docs/authentication/gcloud) to your Google account for the code below to work.
+
 # Symile-MIMIC
 
 In this section, we describe how to generate Symile-MIMIC, a clinical dataset comprised of chest X-rays (CXRs), electrocardiograms (ECGs), and blood labs from the MIMIC-IV and MIMIC-CXR datasets.
@@ -43,6 +45,8 @@ This command takes the following flags:
 | `--cxr_data_dir`       | Directory with MIMIC CXR data, which must include the files `mimic-cxr-2.0.0-metadata.csv.gz` and `mimic-cxr-2.0.0-chexpert.csv.gz`.   | str    |
 | `--ecg_data_dir`       | Directory with MIMIC ECG data, which must include the file `record_list.csv`.                                                         | str    |
 | `--save_dir`           | Directory where the DataFrame with processed data will be saved.                                                                      | str    |
+| `--gcs`                | Whether to use GCS for CXR data. If present, `--bucket_name` must also be provided. | flag |
+| `--bucket_name`        | GCS bucket with MIMIC CXR data, which must include the files `mimic-cxr-2.0.0-metadata.csv.gz` and `mimic-cxr-2.0.0-chexpert.csv.gz`. | str |
 
 The script typically completes in 7 hours when executed with 16 CPUs and 100GB of memory.
 
@@ -88,6 +92,8 @@ This command takes the following flags:
 | `--data_dir`       | Directory with dataset csvs.                             | str       |              |
 | `--ecg_data_dir`   | Directory that contains the MIMIC `files` directory with ECG data. | str       |              |
 | `--cxr_data_dir`   | Directory that contains the MIMIC `files` directory with CXR data. | str       |              |
+| `--gcs`            | Whether to use GCS for CXR data. Requires `--bucket_name` if used.                         | flag         | `False` |
+| `--bucket_name`    | Bucket that contains the MIMIC `files` directory with CXR data. | str | `None` |
 | `--labs_means`     | JSON filename for labs means.                            | str       | `labs_means.json`|
 | `--train_csv`      | Filename for train csv.                                  | str       | `train.csv`      |
 | `--val_csv`        | Filename for val csv.                                    | str       | `val.csv`        |
